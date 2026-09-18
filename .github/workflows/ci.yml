@@ -1,0 +1,50 @@
+# Run the full test suite on pull requests: the backend's own smoke test, the
+# JS/Python parity harness, and the headless console check.
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - name: Python worker dependencies
+        run: pip install -r worker/requirements.txt
+
+      - name: Backend smoke test
+        run: |
+          python -m uvicorn app.main:app --app-dir worker --port 8811 --log-level warning &
+          (cd gateway && npm install --no-audit --no-fund && WORKER_URL=http://127.0.0.1:8811 node src/index.js &)
+          sleep 8
+          (cd gateway && node scripts/smoke.js http://127.0.0.1:8800)
+
+      - name: Globe module is in sync
+        run: node tools/sync-map3d.mjs --check
+
+      - name: JS / Python parity
+        run: |
+          python3 tools/dump_reference.py
+          node tools/parity-check.mjs
+
+      - name: Console check
+        run: |
+          npm install --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+          node tools/serve.mjs 4173 site &
+          sleep 3
+          node tools/site-check.mjs http://127.0.0.1:4173
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: artifacts/
+          if-no-files-found: ignore
