@@ -1,0 +1,83 @@
+# Deploy the static mission console to GitHub Pages.
+#
+# The site in `site/` is entirely self-contained — no build step, no bundler,
+# no server. This workflow just uploads it. Enable Pages once under
+# Settings → Pages → Source: GitHub Actions, then every push to the default
+# branch publishes.
+name: Deploy console to Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; don't cancel a run that's mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify before publishing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The browser engine is a port of the Python mission worker. Refuse to
+      # publish if the two have drifted apart.
+      - name: Globe module is in sync
+        run: node tools/sync-map3d.mjs --check
+
+      - name: Regenerate the Python reference
+        run: python3 tools/dump_reference.py
+
+      - name: JS / Python parity
+        run: node tools/parity-check.mjs
+
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund playwright
+          npx playwright install --with-deps chromium
+
+      - name: Serve and check the console
+        run: |
+          node tools/serve.mjs 4173 site &
+          npx wait-on http://127.0.0.1:4173 --timeout 30000 || sleep 5
+          node tools/site-check.mjs http://127.0.0.1:4173
+
+      - name: Upload check screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-screenshots
+          path: artifacts/
+          if-no-files-found: ignore
+
+  deploy:
+    name: Publish
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
