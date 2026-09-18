@@ -1,0 +1,21 @@
+{
+  "name": "@orbital-sentinel/gateway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Node API gateway for the ORBITAL SENTINEL mission console: REST facade, mission clock, and live telemetry WebSocket.",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "ws": "^8.18.0"
+  }
+}
