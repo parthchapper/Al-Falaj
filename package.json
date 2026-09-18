@@ -1,0 +1,23 @@
+{
+  "name": "al-falaj-sat-1",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AL-FALAJ SAT-1 \u2014 mission console for a 6U hyperspectral CubeSat monitoring UAE coastal waters. One closed orbit in 90 s with a continuous time warp, a synthesised pipe-organ score driven by the mission clock, live AOS/LOS and a water-security readout. Static site for GitHub Pages, plus the Node + Python backend.",
+  "scripts": {
+    "serve": "node tools/serve.mjs 4173 site",
+    "sync": "node tools/sync-map3d.mjs",
+    "reference": "python3 tools/dump_reference.py",
+    "parity": "node tools/parity-check.mjs",
+    "site-check": "node tools/site-check.mjs",
+    "check": "node tools/sync-map3d.mjs --check && npm run reference && npm run parity && npm run site-check",
+    "backend": "./scripts/start.sh",
+    "phase": "python3 tools/solve_phase.py"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

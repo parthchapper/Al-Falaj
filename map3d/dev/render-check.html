@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>map3d renderer check</title>
+<!--
+  DEVELOPER TEST HARNESS — NOT the mission console UI.
+
+  This page exists only to prove the globe module boots, connects to the
+  gateway, and draws frames. It has no LCARS chrome, no gauges and no
+  layout, because the console UI is built separately against the same
+  module. Open it at http://localhost:8800/map3d/../ via `node
+  dev/render-check.mjs`, or serve this file yourself.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #00060a; }
+  #globe { position: absolute; inset: 0; }
+  #probe { position: absolute; left: 8px; top: 8px; z-index: 10;
+           font: 11px ui-monospace, monospace; color: #00f3ff; white-space: pre; }
+</style>
+</head>
+<body>
+<div id="globe"></div>
+<div id="probe">booting…</div>
+
+<script type="importmap">
+{ "imports": { "three": "/vendor/three.module.js" } }
+</script>
+
+<script type="module">
+  import { mount } from '/map3d/index.js';
+
+  const probe = document.getElementById('probe');
+  const report = { booted: false, frames: 0, mapFrames: 0, downlinkLines: 0, modes: [], errors: [] };
+  window.__report = report;
+
+  window.addEventListener('error', (e) => report.errors.push(String(e.message)));
+  window.addEventListener('unhandledrejection', (e) => report.errors.push(String(e.reason)));
+
+  try {
+    const { globe, link } = await mount(document.getElementById('globe'), {
+      baseUrl: window.location.origin,
+      autoRotate: true,
+    });
+    report.booted = true;
+    window.__globe = globe;
+
+    link.on('map', () => { report.mapFrames += 1; });
+    link.on('downlink', (m) => { report.downlinkLines += m.lines?.length ?? 0; });
+    link.on(':mode', (m) => report.modes.push(m.to));
+
+    // Count real rendered frames by piggy-backing on the render loop.
+    const origRender = globe.renderer.render.bind(globe.renderer);
+    globe.renderer.render = (...args) => { report.frames += 1; return origRender(...args); };
+
+    report.sceneChildren = globe.scene.children.length;
+    report.layers = Object.keys(globe).filter((k) =>
+      ['earth', 'satellite', 'swath', 'markers', 'bloom'].includes(k));
+
+    setInterval(() => {
+      probe.textContent =
+        `booted=${report.booted} frames=${report.frames} map=${report.mapFrames} ` +
+        `log=${report.downlinkLines}\nmode=${globe.mode} errors=${report.errors.length}`;
+    }, 200);
+  } catch (err) {
+    report.errors.push(String(err?.stack || err));
+    probe.textContent = 'BOOT FAILED: ' + err;
+  }
+</script>
+</body>
+</html>
